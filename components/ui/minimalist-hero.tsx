@@ -8,7 +8,6 @@ interface MinimalistHeroProps {
   logoText: string;
   navLinks: { label: string; href: string }[];
   mainText: string;
-  readMoreLink: string;
   imageSrc: string;
   imageAlt: string;
   overlayText: {
@@ -31,7 +30,6 @@ export const MinimalistHero = ({
   logoText,
   navLinks,
   mainText,
-  readMoreLink,
   imageSrc,
   imageAlt,
   overlayText,
@@ -69,7 +67,7 @@ export const MinimalistHero = ({
           className="hidden md:block"
         >
           <a
-            href={readMoreLink}
+            href="/auth"
             className="rounded-full border border-foreground px-5 py-2 text-xs font-medium tracking-widest text-foreground transition-colors hover:bg-foreground hover:text-background"
           >
             GET STARTED
@@ -99,7 +97,7 @@ export const MinimalistHero = ({
         >
           <p className="mx-auto max-w-xs text-sm leading-relaxed text-foreground/80 md:mx-0">{mainText}</p>
           <a
-            href={readMoreLink}
+            href="/auth"
             className="mt-4 inline-block rounded-full bg-foreground px-6 py-2.5 text-xs font-medium tracking-widest text-background transition-colors hover:bg-foreground/80"
           >
             GET STARTED

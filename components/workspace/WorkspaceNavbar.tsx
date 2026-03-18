@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
-export function WorkspaceNavbar() {
+export function WorkspaceNavbar({ onSearch }: { onSearch?: (q: string) => void }) {
   const { user, signOut } = useAuth();
   const [popoverOpen, setPopoverOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -52,7 +52,7 @@ export function WorkspaceNavbar() {
             boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)',
             caretColor: 'rgba(255,255,255,0.6)',
           }}
-          readOnly
+          onChange={(e) => onSearch?.(e.target.value)}
         />
       </div>
 

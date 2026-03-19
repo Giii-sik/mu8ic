@@ -60,11 +60,11 @@ export default function AuthPage() {
         {/* Terms */}
         <p className="mt-6 text-center text-[10px] leading-relaxed text-white/25">
           By continuing, you agree to our{' '}
-          <a href="#" className="text-white/40 underline decoration-dotted hover:text-white/60">
+          <a href="/terms" className="text-white/40 underline decoration-dotted hover:text-white/60">
             Terms of Service
           </a>{' '}
           and{' '}
-          <a href="#" className="text-white/40 underline decoration-dotted hover:text-white/60">
+          <a href="/privacy" className="text-white/40 underline decoration-dotted hover:text-white/60">
             Privacy Policy
           </a>
           .

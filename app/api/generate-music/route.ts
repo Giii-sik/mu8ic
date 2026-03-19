@@ -6,6 +6,17 @@ export const maxDuration = 300;
 
 const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
 
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+function calcCost(duration: number, batchSize: number): number {
+  const durationExtra = duration === 120 ? 1 : duration === 180 ? 2 : 0;
+  const batchExtra = batchSize - 1;
+  return 1 + durationExtra + batchExtra;
+}
+
 function extractReplicateUrl(output: unknown): string {
   if (Array.isArray(output) && output.length > 0) {
     const first = output[0] as unknown as { url?: () => URL };
@@ -39,6 +50,33 @@ export async function POST(req: NextRequest) {
     const batchSizeRaw = Number(body.batchSize);
     const batchSize = Math.min(4, Math.max(1, Number.isFinite(batchSizeRaw) ? Math.floor(batchSizeRaw) : 1));
 
+    const totalCost = calcCost(duration, batchSize);
+
+    // Check credits (use admin to bypass RLS)
+    const { data: userRow, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('credits')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userRow) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (userRow.credits < totalCost) {
+      return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 });
+    }
+
+    // Deduct credits upfront
+    const { error: deductError } = await supabaseAdmin
+      .from('users')
+      .update({ credits: userRow.credits - totalCost })
+      .eq('id', userId);
+
+    if (deductError) {
+      return NextResponse.json({ error: 'Failed to deduct credits' }, { status: 500 });
+    }
+
     // Authenticated Supabase client (RLS applies with user's JWT)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -65,11 +103,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Run sequentially to respect Replicate's burst limit (1 req burst at low credit)
-    const outputs: unknown[] = [];
-    for (let i = 0; i < batchSize; i++) {
-      if (i > 0) await new Promise((r) => setTimeout(r, 1500));
-      outputs.push(await runWithRetry(replicateInput));
+    let outputs: unknown[];
+    try {
+      outputs = [];
+      for (let i = 0; i < batchSize; i++) {
+        if (i > 0) await new Promise((r) => setTimeout(r, 1500));
+        outputs.push(await runWithRetry(replicateInput));
+      }
+    } catch (err) {
+      // Refund credits if generation fails
+      await supabaseAdmin
+        .from('users')
+        .update({ credits: userRow.credits })
+        .eq('id', userId);
+      throw err;
     }
 
     // For each output: download audio, upload to storage, insert DB record

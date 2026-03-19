@@ -7,10 +7,11 @@ import { WorkspaceNavbar } from '@/components/workspace/WorkspaceNavbar';
 import { PromptInputBox } from '@/components/workspace/PromptInputBox';
 import { MusicList } from '@/components/workspace/MusicList';
 import { BottomPlayer } from '@/components/workspace/BottomPlayer';
+import { CreditModal } from '@/components/workspace/CreditModal';
 import type { Track } from '@/components/workspace/BottomPlayer';
 
 export default function WorkspacePage() {
-  const { user, session, loading } = useAuth();
+  const { user, session, loading, credits, refreshCredits } = useAuth();
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -18,6 +19,7 @@ export default function WorkspacePage() {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [allTracks, setAllTracks] = useState<Track[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [creditModalOpen, setCreditModalOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -62,6 +64,7 @@ export default function WorkspacePage() {
       if (!res.ok) throw new Error(data.error || 'Generation failed');
 
       setRefreshKey((k) => k + 1);
+      await refreshCredits();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -88,7 +91,12 @@ export default function WorkspacePage() {
       </main>
 
       <div className={`fixed left-1/2 w-full max-w-2xl -translate-x-1/2 px-4 transition-all duration-300 ${bottomOffset}`}>
-        <PromptInputBox onSend={handleSend} isLoading={isGenerating} />
+        <PromptInputBox
+          onSend={handleSend}
+          isLoading={isGenerating}
+          credits={credits}
+          onInsufficientCredits={() => setCreditModalOpen(true)}
+        />
       </div>
 
       <BottomPlayer
@@ -96,6 +104,8 @@ export default function WorkspacePage() {
         tracks={allTracks}
         onTrackChange={handleTrackSelect}
       />
+
+      {creditModalOpen && <CreditModal onClose={() => setCreditModalOpen(false)} />}
     </div>
   );
 }

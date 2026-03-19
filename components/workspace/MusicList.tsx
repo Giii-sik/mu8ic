@@ -118,14 +118,18 @@ export function MusicList({
     }
   };
 
-  const handleDownload = (signedUrl: string, prompt: string) => {
+  const handleDownload = async (signedUrl: string, prompt: string) => {
     setOpenMenuId(null);
+    const res = await fetch(signedUrl);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = signedUrl;
-    a.download = `${prompt.slice(0, 40)}.mp3`;
+    a.href = blobUrl;
+    a.download = `${prompt.slice(0, 40).trim()}.mp3`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
   };
 
   const filteredTracks = searchQuery.trim()

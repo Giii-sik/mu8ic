@@ -22,6 +22,7 @@ const fmt = (s: number) =>
 export function BottomPlayer({ track, tracks, onTrackChange }: BottomPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const desktopProgressRef = useRef<HTMLDivElement>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -29,7 +30,6 @@ export function BottomPlayer({ track, tracks, onTrackChange }: BottomPlayerProps
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
-  // 트랙 변경 시 자동 재생
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !track) return;
@@ -42,16 +42,13 @@ export function BottomPlayer({ track, tracks, onTrackChange }: BottomPlayerProps
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
     const onLoaded = () => setDuration(audio.duration);
     const onEnded = () => {
       setIsPlaying(false);
-      // 다음 트랙 자동 재생
       const idx = tracks.findIndex((t) => t.id === track?.id);
       if (idx !== -1 && idx < tracks.length - 1) onTrackChange(tracks[idx + 1]);
     };
-
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoaded);
     audio.addEventListener('ended', onEnded);
@@ -69,8 +66,8 @@ export function BottomPlayer({ track, tracks, onTrackChange }: BottomPlayerProps
     else { audio.play(); setIsPlaying(true); }
   };
 
-  const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const bar = progressRef.current;
+  const seekOnBar = useCallback((e: React.MouseEvent<HTMLDivElement>, ref: React.RefObject<HTMLDivElement | null>) => {
+    const bar = ref.current;
     const audio = audioRef.current;
     if (!bar || !audio || !duration) return;
     const rect = bar.getBoundingClientRect();
@@ -85,10 +82,7 @@ export function BottomPlayer({ track, tracks, onTrackChange }: BottomPlayerProps
     setVolume(v);
     if (audioRef.current) audioRef.current.volume = v;
     if (v === 0) setIsMuted(true);
-    else if (isMuted) {
-      setIsMuted(false);
-      if (audioRef.current) audioRef.current.muted = false;
-    }
+    else if (isMuted) { setIsMuted(false); if (audioRef.current) audioRef.current.muted = false; }
   };
 
   const toggleMute = () => {
@@ -101,100 +95,150 @@ export function BottomPlayer({ track, tracks, onTrackChange }: BottomPlayerProps
   const currentIdx = tracks.findIndex((t) => t.id === track?.id);
   const hasPrev = currentIdx > 0;
   const hasNext = currentIdx < tracks.length - 1;
-
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   if (!track) return null;
 
   return (
-    <div
-      className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-4 px-6"
-      style={{
-        height: '80px',
-        background: '#0f0f0f',
-        borderTop: '1px solid #2a2a2a',
-      }}
-    >
+    <div className="fixed bottom-0 left-0 right-0 z-50" style={{ background: '#0f0f0f', borderTop: '1px solid #2a2a2a' }}>
       <audio ref={audioRef} preload="metadata" />
 
-      {/* 트랙 정보 */}
-      <div className="flex items-center gap-3 w-[28%] min-w-0">
+      {/* ── Mobile layout (Spotify-style) ── */}
+      <div className="md:hidden">
+        {/* Progress bar — thin strip at top, tappable */}
         <div
-          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
-          style={{ background: 'linear-gradient(135deg, #3b3f6e 0%, #2a1f4e 100%)' }}
+          ref={progressRef}
+          onClick={(e) => seekOnBar(e, progressRef)}
+          className="relative h-[3px] w-full cursor-pointer bg-[#2a2a2a]"
         >
-          <Music className="h-4 w-4 text-white/40" />
-        </div>
-        <p className="text-sm text-white/60 truncate leading-snug">{track.prompt}</p>
-      </div>
-
-      {/* 중앙 컨트롤 */}
-      <div className="flex flex-1 flex-col items-center gap-2">
-        {/* 버튼 */}
-        <div className="flex items-center gap-5">
-          <button
-            onClick={() => hasPrev && onTrackChange(tracks[currentIdx - 1])}
-            disabled={!hasPrev}
-            className="text-white/40 transition-colors hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed"
-          >
-            <SkipBack className="h-4 w-4 fill-current" />
-          </button>
-
-          <button
-            onClick={togglePlay}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-black transition-transform hover:scale-105"
-          >
-            {isPlaying
-              ? <Pause className="h-4 w-4 fill-current" />
-              : <Play className="h-4 w-4 fill-current translate-x-px" />}
-          </button>
-
-          <button
-            onClick={() => hasNext && onTrackChange(tracks[currentIdx + 1])}
-            disabled={!hasNext}
-            className="text-white/40 transition-colors hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed"
-          >
-            <SkipForward className="h-4 w-4 fill-current" />
-          </button>
-        </div>
-
-        {/* 프로그레스 바 */}
-        <div className="flex items-center gap-2 w-full max-w-md">
-          <span className="text-[11px] tabular-nums text-white/30 w-8 text-right">{fmt(currentTime)}</span>
           <div
-            ref={progressRef}
-            onClick={handleProgressClick}
-            className="group relative flex-1 h-1 cursor-pointer rounded-full bg-[#2e2e2e]"
+            className="absolute left-0 top-0 h-full bg-white/60 transition-none"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* Main row */}
+        <div className="flex items-center gap-3 px-4 py-3">
+          {/* Album thumbnail */}
+          <div
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
+            style={{ background: 'linear-gradient(135deg, #3b3f6e 0%, #2a1f4e 100%)' }}
           >
-            <div
-              className="absolute left-0 top-0 h-full rounded-full bg-[#6b7280] group-hover:bg-white/60 transition-colors"
-              style={{ width: `${progress}%` }}
-            />
-            <div
-              className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity shadow"
-              style={{ left: `calc(${progress}% - 6px)` }}
-            />
+            <Music className="h-4 w-4 text-white/40" />
           </div>
-          <span className="text-[11px] tabular-nums text-white/30 w-8">{fmt(duration)}</span>
+
+          {/* Track title */}
+          <p className="flex-1 min-w-0 text-sm font-medium text-white/75 truncate leading-tight">
+            {track.prompt}
+          </p>
+
+          {/* Controls */}
+          <div className="flex flex-shrink-0 items-center gap-4">
+            <button
+              onClick={() => hasPrev && onTrackChange(tracks[currentIdx - 1])}
+              disabled={!hasPrev}
+              className="text-white/45 transition-opacity active:opacity-50 disabled:opacity-20"
+            >
+              <SkipBack className="h-5 w-5 fill-current" />
+            </button>
+
+            <button
+              onClick={togglePlay}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-black active:scale-95 transition-transform"
+            >
+              {isPlaying
+                ? <Pause className="h-[18px] w-[18px] fill-current" />
+                : <Play className="h-[18px] w-[18px] fill-current translate-x-px" />}
+            </button>
+
+            <button
+              onClick={() => hasNext && onTrackChange(tracks[currentIdx + 1])}
+              disabled={!hasNext}
+              className="text-white/45 transition-opacity active:opacity-50 disabled:opacity-20"
+            >
+              <SkipForward className="h-5 w-5 fill-current" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 볼륨 */}
-      <div className="flex items-center justify-end gap-2 w-[28%]">
-        <button onClick={toggleMute} className="text-white/40 transition-colors hover:text-white/70">
-          {isMuted || volume === 0
-            ? <VolumeX className="h-4 w-4" />
-            : <Volume2 className="h-4 w-4" />}
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={isMuted ? 0 : volume}
-          onChange={handleVolume}
-          className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-[#2e2e2e] accent-white/60"
-        />
+      {/* ── Desktop layout (3-column) ── */}
+      <div className="hidden items-center gap-4 px-6 md:flex" style={{ height: '80px' }}>
+        {/* Track info */}
+        <div className="flex w-[28%] min-w-0 items-center gap-3">
+          <div
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
+            style={{ background: 'linear-gradient(135deg, #3b3f6e 0%, #2a1f4e 100%)' }}
+          >
+            <Music className="h-4 w-4 text-white/40" />
+          </div>
+          <p className="truncate text-sm text-white/60 leading-snug">{track.prompt}</p>
+        </div>
+
+        {/* Center controls + progress */}
+        <div className="flex flex-1 flex-col items-center gap-2">
+          <div className="flex items-center gap-5">
+            <button
+              onClick={() => hasPrev && onTrackChange(tracks[currentIdx - 1])}
+              disabled={!hasPrev}
+              className="text-white/40 transition-colors hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed"
+            >
+              <SkipBack className="h-4 w-4 fill-current" />
+            </button>
+
+            <button
+              onClick={togglePlay}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-black transition-transform hover:scale-105"
+            >
+              {isPlaying
+                ? <Pause className="h-4 w-4 fill-current" />
+                : <Play className="h-4 w-4 fill-current translate-x-px" />}
+            </button>
+
+            <button
+              onClick={() => hasNext && onTrackChange(tracks[currentIdx + 1])}
+              disabled={!hasNext}
+              className="text-white/40 transition-colors hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed"
+            >
+              <SkipForward className="h-4 w-4 fill-current" />
+            </button>
+          </div>
+
+          <div className="flex w-full max-w-md items-center gap-2">
+            <span className="w-8 text-right text-[11px] tabular-nums text-white/30">{fmt(currentTime)}</span>
+            <div
+              ref={desktopProgressRef}
+              onClick={(e) => seekOnBar(e, desktopProgressRef)}
+              className="group relative h-1 flex-1 cursor-pointer rounded-full bg-[#2e2e2e]"
+            >
+              <div
+                className="absolute left-0 top-0 h-full rounded-full bg-[#6b7280] transition-colors group-hover:bg-white/60"
+                style={{ width: `${progress}%` }}
+              />
+              <div
+                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-white opacity-0 shadow transition-opacity group-hover:opacity-100"
+                style={{ left: `calc(${progress}% - 6px)` }}
+              />
+            </div>
+            <span className="w-8 text-[11px] tabular-nums text-white/30">{fmt(duration)}</span>
+          </div>
+        </div>
+
+        {/* Volume */}
+        <div className="flex w-[28%] items-center justify-end gap-2">
+          <button onClick={toggleMute} className="text-white/40 transition-colors hover:text-white/70">
+            {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={isMuted ? 0 : volume}
+            onChange={handleVolume}
+            className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-[#2e2e2e] accent-white/60"
+          />
+        </div>
       </div>
     </div>
   );

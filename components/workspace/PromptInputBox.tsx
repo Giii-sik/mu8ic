@@ -4,7 +4,7 @@ import React from 'react';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
-  ArrowUp, X, Music, Clock, Layers,
+  ArrowUp, X, Music, Clock, Layers, Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -215,14 +215,35 @@ const CustomDivider = () => (
   <div className="relative h-6 w-px mx-1 bg-gradient-to-b from-transparent via-white/15 to-transparent" />
 );
 
+// ─── Credit cost helpers ───────────────────────────────────────────────────────
+function calcCost(duration: number, batchSize: number): number {
+  const durationExtra = duration === 120 ? 1 : duration === 180 ? 2 : 0;
+  const batchExtra = batchSize - 1;
+  return 1 + durationExtra + batchExtra;
+}
+
+const CreditBadge = ({ extra }: { extra: number }) =>
+  extra > 0 ? (
+    <span className="ml-auto text-[10px] text-amber-400/70">+{extra}</span>
+  ) : null;
+
 // ─── Main PromptInputBox ───────────────────────────────────────────────────────
 export const PromptInputBox = React.forwardRef<HTMLDivElement, {
   onSend?: (message: string, options: { lyrics: string; duration: number; batchSize: number }) => void;
+  onInsufficientCredits?: () => void;
   isLoading?: boolean;
   placeholder?: string;
   className?: string;
+  credits?: number;
 }>((props, ref) => {
-  const { onSend = () => {}, isLoading = false, placeholder = 'Describe the music you want to create...', className } = props;
+  const {
+    onSend = () => {},
+    onInsufficientCredits,
+    isLoading = false,
+    placeholder = 'Describe the music you want to create...',
+    className,
+    credits = 0,
+  } = props;
 
   const [input, setInput] = React.useState('');
   const [lyrics, setLyrics] = React.useState('');
@@ -248,8 +269,12 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, {
     return () => document.removeEventListener('mousedown', handle);
   }, []);
 
+  const totalCost = calcCost(duration, batchSize);
+  const notEnoughCredits = credits < totalCost;
+
   const handleSubmit = () => {
     if (!input.trim()) return;
+    if (notEnoughCredits) { onInsufficientCredits?.(); return; }
     onSend(input, { lyrics, duration, batchSize });
     setInput('');
   };
@@ -262,6 +287,9 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, {
     if (d === 180) return '3 min';
     return `${d}s`;
   };
+
+  const durationExtra = (d: number) => (d === 120 ? 1 : d === 180 ? 2 : 0);
+  const batchExtra = (b: number) => b - 1;
 
   return (
     <>
@@ -295,7 +323,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, {
                 )}
               >
                 <Music className="w-4 h-4" />
-                <span>{lyrics ? 'Lyrics ✓' : 'Lyrics'}</span>
+                <span className="hidden sm:inline">{lyrics ? 'Lyrics ✓' : 'Lyrics'}</span>
               </button>
             </PromptInputAction>
 
@@ -315,12 +343,12 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, {
                   )}
                 >
                   <Clock className="w-4 h-4" />
-                  <span>{durationLabel(duration)}</span>
+                  <span className="hidden sm:inline">{durationLabel(duration)}</span>
                 </button>
               </PromptInputAction>
 
               {showDurationPopover && (
-                <div className="absolute bottom-full left-0 mb-2 z-50 rounded-lg border border-[#333] bg-[#1a1a1a] shadow-xl py-1 min-w-[110px]">
+                <div className="absolute bottom-full left-0 mb-2 z-50 rounded-lg border border-[#333] bg-[#1a1a1a] shadow-xl py-1 min-w-[130px]">
                   {[60, 120, 180].map((d) => (
                     <button
                       key={d}
@@ -331,7 +359,8 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, {
                         duration === d ? 'text-white/90' : 'text-white/50',
                       )}
                     >
-                      {durationLabel(d)}
+                      <span>{durationLabel(d)}</span>
+                      <CreditBadge extra={durationExtra(d)} />
                     </button>
                   ))}
                 </div>
@@ -354,12 +383,12 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, {
                   )}
                 >
                   <Layers className="w-4 h-4" />
-                  <span>&times;{batchSize}</span>
+                  <span className="hidden sm:inline">&times;{batchSize}</span>
                 </button>
               </PromptInputAction>
 
               {showBatchPopover && (
-                <div className="absolute bottom-full left-0 mb-2 z-50 rounded-lg border border-[#333] bg-[#1a1a1a] shadow-xl py-1 min-w-[80px]">
+                <div className="absolute bottom-full left-0 mb-2 z-50 rounded-lg border border-[#333] bg-[#1a1a1a] shadow-xl py-1 min-w-[100px]">
                   {[1, 2, 3, 4].map((b) => (
                     <button
                       key={b}
@@ -370,7 +399,8 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, {
                         batchSize === b ? 'text-white/90' : 'text-white/50',
                       )}
                     >
-                      &times;{b}
+                      <span>&times;{b}</span>
+                      <CreditBadge extra={batchExtra(b)} />
                     </button>
                   ))}
                 </div>
@@ -378,18 +408,31 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, {
             </div>
           </div>
 
-          {/* Send button */}
-          <PromptInputAction tooltip={isLoading ? 'Generating...' : hasContent ? 'Send' : 'Send'}>
-            <Button
-              variant={hasContent ? 'default' : 'ghost'}
-              size="icon"
-              className="h-8 w-8 transition-all duration-200"
-              onClick={handleSubmit}
-              disabled={isLoading || !hasContent}
-            >
-              <ArrowUp className="h-4 w-4" />
-            </Button>
-          </PromptInputAction>
+          {/* Right: cost indicator + send button */}
+          <div className="flex items-center gap-2">
+            {/* Credit cost */}
+            <div className={cn(
+              'flex items-center gap-1 text-[11px] tabular-nums transition-colors',
+              notEnoughCredits ? 'text-red-400/80' : 'text-white/25',
+            )}>
+              <Zap className="h-3 w-3" />
+              <span>{totalCost}</span>
+            </div>
+
+            <PromptInputAction tooltip={
+              notEnoughCredits ? 'Not enough credits' : isLoading ? 'Generating...' : 'Send'
+            }>
+              <Button
+                variant={hasContent ? 'default' : 'ghost'}
+                size="icon"
+                className="h-8 w-8 transition-all duration-200"
+                onClick={handleSubmit}
+                disabled={isLoading || !hasContent}
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+            </PromptInputAction>
+          </div>
         </PromptInputActions>
       </PromptInput>
 

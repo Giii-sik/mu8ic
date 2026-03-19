@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Star } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { CreditModal } from './CreditModal';
 
 export function WorkspaceNavbar({ onSearch }: { onSearch?: (q: string) => void }) {
   const { user, signOut } = useAuth();
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [creditModalOpen, setCreditModalOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,6 +111,18 @@ export function WorkspaceNavbar({ onSearch }: { onSearch?: (q: string) => void }
             {/* Divider */}
             <div className="mx-2 my-1" style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }} />
 
+            {/* Upgrade */}
+            <button
+              onClick={() => { setPopoverOpen(false); setCreditModalOpen(true); }}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
+            >
+              <Star className="h-3.5 w-3.5" />
+              Upgrade
+            </button>
+
+            {/* Divider */}
+            <div className="mx-2 my-1" style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }} />
+
             {/* Sign out */}
             <button
               onClick={signOut}
@@ -119,6 +133,8 @@ export function WorkspaceNavbar({ onSearch }: { onSearch?: (q: string) => void }
           </div>
         )}
       </div>
+
+      {creditModalOpen && <CreditModal onClose={() => setCreditModalOpen(false)} />}
     </header>
   );
 }

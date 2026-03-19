@@ -3,7 +3,7 @@ import { Polar } from '@polar-sh/sdk';
 
 const polar = new Polar({
   accessToken: process.env.POLAR_API_TOKEN,
-  server: (process.env.POLAR_ENV as 'sandbox' | 'production') ?? 'sandbox',
+  server: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
 });
 
 export async function POST(req: NextRequest) {
